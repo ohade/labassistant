@@ -14,6 +14,9 @@ const defaultSettings = {
     model: 'gpt-4o',
     delay: 250,
     maxTokens: 1024,
+    isEnabled: true, // Enable the extension by default
+    keyCombinationDefault: 'Ctrl+Shift+A',
+    keyCombinationMac: 'Command+Shift+A',
     systemPrompt: "You are an AI assistant that provides code completions for Python (especially pandas) and SQL in Jupyter notebooks. VERY IMPORTANT: Provide ONLY the continuation text to be inserted where the user stopped typing. DO NOT repeat any of the existing code. DO NOT include markdown code block markers. Provide only plain text continuation that makes sense based on the existing code."
 };
 
@@ -63,6 +66,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     }
                     console.log('Using settings:', settings);
 
+                    // Check if extension is enabled
+                    if (settings.isEnabled === false) {
+                        console.log('Extension is currently disabled by user settings.');
+                        return; // Don't proceed if extension is disabled
+                    }
+                    
                     if (!settings.apiKey) {
                         console.warn('API Key is missing.');
                         sendErrorToContent(sender.tab.id, 'OpenAI API Key not set in extension options.');
@@ -217,16 +226,24 @@ async function callOpenAI(code, settings, tabId) {
 // Listen for the command to accept the suggestion
 chrome.commands.onCommand.addListener((command) => {
     console.log(`Command received: ${command}`);
-    if (command === 'accept_suggestion') {
-        // Send message to the content script of the tab that last requested a suggestion
-        if (lastSuggestionRequest && lastSuggestionRequest.tabId) {
-             console.log(`Sending accept command to tab: ${lastSuggestionRequest.tabId}`);
-             chrome.tabs.sendMessage(lastSuggestionRequest.tabId, { type: 'executeAcceptSuggestion' })
-                 .catch(error => console.warn(`Could not send accept message to tab ${lastSuggestionRequest.tabId}: ${error.message}. Tab might be closed.`));
-        } else {
-             console.warn('Accept command received, but no target tab known.');
+    // First check if extension is enabled before processing any commands
+    chrome.storage.local.get({ isEnabled: true }, (settings) => {
+        if (settings.isEnabled === false) {
+            console.log('Command ignored - extension is disabled in settings');
+            return;
         }
-    }
+        
+        if (command === 'accept_suggestion') {
+            // Send message to the content script of the tab that last requested a suggestion
+            if (lastSuggestionRequest && lastSuggestionRequest.tabId) {
+                console.log(`Sending accept command to tab: ${lastSuggestionRequest.tabId}`);
+                chrome.tabs.sendMessage(lastSuggestionRequest.tabId, { type: 'executeAcceptSuggestion' })
+                    .catch(error => console.warn(`Could not send accept message to tab ${lastSuggestionRequest.tabId}: ${error.message}. Tab might be closed.`));
+            } else {
+                console.warn('Accept command received, but no target tab known.');
+            }
+        }
+    });
 });
 
 function sendErrorToContent(tabId, errorMessage) {

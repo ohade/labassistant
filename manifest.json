@@ -37,7 +37,7 @@
         "default": "Ctrl+Shift+A", 
         "mac": "Command+Shift+A"
       },
-      "description": "Accept Copilot Suggestion"
+      "description": "Key Combination to Accept Code Suggestion"
     }
   },
   "action": {

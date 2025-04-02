@@ -58,3 +58,26 @@ button:hover {
     margin-top: 15px;
     font-weight: bold;
 }
+
+/* Styles for the sub-settings */
+.sub-setting {
+    margin: 8px 0;
+    display: flex;
+    align-items: center;
+}
+
+.sub-setting label {
+    width: 120px;
+    margin-bottom: 0;
+    font-weight: normal;
+}
+
+.sub-setting input {
+    flex: 1;
+}
+
+/* Style for checkbox */
+input[type="checkbox"] {
+    transform: scale(1.2);
+    margin-left: 5px;
+}

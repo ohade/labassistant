@@ -5,6 +5,9 @@ const defaultSettings = {
     model: 'gpt-4o', // Keep consistent with HTML
     delay: 500,
     maxTokens: 1024,
+    isEnabled: true, // Enable the extension by default
+    keyCombinationDefault: 'Ctrl+Shift+A',
+    keyCombinationMac: 'Command+Shift+A',
     systemPrompt: `You are an AI assistant that provides code completions for Python (especially pandas) and SQL in JupyterLab notebooks. Provide only the code completion, no explanations.`
 };
 
@@ -15,6 +18,9 @@ function saveOptions() {
     const delay = parseInt(document.getElementById('delay').value, 10);
     const maxTokens = parseInt(document.getElementById('maxTokens').value, 10);
     const systemPrompt = document.getElementById('systemPrompt').value;
+    const isEnabled = document.getElementById('isEnabled').checked;
+    const keyCombinationDefault = document.getElementById('keyCombinationDefault').value;
+    const keyCombinationMac = document.getElementById('keyCombinationMac').value;
 
     // Basic validation
     if (isNaN(delay) || delay < 0) {
@@ -33,6 +39,9 @@ function saveOptions() {
         model: 'gpt-4o', // Hardcoded for now
         delay,
         maxTokens,
+        isEnabled,
+        keyCombinationDefault,
+        keyCombinationMac,
         systemPrompt
     };
 
@@ -59,14 +68,23 @@ function restoreOptions() {
              document.getElementById('apiKey').value = defaultSettings.apiKey;
              document.getElementById('delay').value = defaultSettings.delay;
              document.getElementById('maxTokens').value = defaultSettings.maxTokens;
+             document.getElementById('isEnabled').checked = defaultSettings.isEnabled;
+             document.getElementById('keyCombinationDefault').value = defaultSettings.keyCombinationDefault;
+             document.getElementById('keyCombinationMac').value = defaultSettings.keyCombinationMac;
              document.getElementById('systemPrompt').value = defaultSettings.systemPrompt;
         } else {
             console.log('Loaded settings:', items);
             document.getElementById('apiKey').value = items.apiKey || ''; // Ensure empty string if null/undefined
             document.getElementById('delay').value = items.delay;
             document.getElementById('maxTokens').value = items.maxTokens;
+            document.getElementById('isEnabled').checked = items.isEnabled !== undefined ? items.isEnabled : true;
+            document.getElementById('keyCombinationDefault').value = items.keyCombinationDefault || defaultSettings.keyCombinationDefault;
+            document.getElementById('keyCombinationMac').value = items.keyCombinationMac || defaultSettings.keyCombinationMac;
             document.getElementById('systemPrompt').value = items.systemPrompt;
-             console.log('Options restored.');
+            console.log('Options restored.');
+            
+            // Update the key combination display based on current settings
+            updateKeyCombinationDisplay();
         }
     });
 }
@@ -77,12 +95,26 @@ function setStatus(message) {
     console.log('Status update:', message);
 }
 
+// Function to update the key combination display based on platform and current settings
+function updateKeyCombinationDisplay() {
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const combinationElement = document.getElementById('keyCombinationDisplay');
+    
+    if (isMac) {
+        const macCombination = document.getElementById('keyCombinationMac').value;
+        combinationElement.textContent = macCombination;
+    } else {
+        const defaultCombination = document.getElementById('keyCombinationDefault').value;
+        combinationElement.textContent = defaultCombination;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM fully loaded.');
     restoreOptions();
     document.getElementById('save').addEventListener('click', saveOptions);
-     // Optional: Display the correct shortcut based on OS (approximated)
-     if (navigator.platform.toUpperCase().indexOf('MAC') >= 0) {
-        document.getElementById('shortcutDisplay').textContent = 'Command+Shift+A';
-     }
+    
+    // Update key combination display when inputs change
+    document.getElementById('keyCombinationMac').addEventListener('input', updateKeyCombinationDisplay);
+    document.getElementById('keyCombinationDefault').addEventListener('input', updateKeyCombinationDisplay);
 });

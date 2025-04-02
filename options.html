@@ -30,15 +30,30 @@
         <input type="number" id="maxTokens" name="maxTokens" min="1" step="1">
     </div>
 
+    <div class="setting">
+        <label for="isEnabled">Enable Extension:</label>
+        <input type="checkbox" id="isEnabled" name="isEnabled">
+        <p class="note">Turn the extension on or off. When disabled, no code suggestions will be displayed.</p>
+    </div>
+
+    <div class="setting">
+        <label>Accept Key Combination:</label>
+        <div class="sub-setting">
+            <label for="keyCombinationDefault">Windows/Linux:</label>
+            <input type="text" id="keyCombinationDefault" name="keyCombinationDefault" placeholder="Ctrl+Shift+A">
+        </div>
+        <div class="sub-setting">
+            <label for="keyCombinationMac">Mac:</label>
+            <input type="text" id="keyCombinationMac" name="keyCombinationMac" placeholder="Command+Shift+A">
+        </div>
+        <p class="note">Customize the key combination used to accept code suggestions. Current combination: <strong id="keyCombinationDisplay">Ctrl+Shift+A</strong></p>
+        <p class="note">Note: Changes to the key combination require extension reload to take effect.</p>
+    </div>
+
      <div class="setting">
         <label for="systemPrompt">System Prompt:</label>
         <textarea id="systemPrompt" name="systemPrompt" rows="5"></textarea>
     </div>
-
-     <div class="setting">
-         <label>Accept Suggestion:</label>
-         <p class="note">Use the shortcut <strong id="shortcutDisplay">Ctrl+Shift+A</strong> (Windows/Linux) or <strong >Command+Shift+A</strong> (Mac). Configure in <a href="chrome://extensions/shortcuts" target="_blank">chrome://extensions/shortcuts</a>.</p>
-     </div>
 
 
     <button id="save">Save Settings</button>
