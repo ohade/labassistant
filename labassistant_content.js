@@ -25,7 +25,7 @@ let suggestionTimeout = null;
 let currentSuggestion = null; // Store the suggestion text
 let suggestionElement = null; // Store the DOM element for the suggestion
 let lastActiveEditor = null; // Keep track of the editor we attached listeners to
-let currentDelay = 500; // Default delay, will be updated from storage
+let currentDelay = 250; // Default delay (reduced from 500), will be updated from storage
 
 // Function to remove existing suggestion element
 function dismissSuggestion() {
@@ -41,20 +41,40 @@ function dismissSuggestion() {
 function cleanCodeSuggestion(text) {
     console.log("Cleaning suggestion:", text);
     
-    // Check for markdown code blocks with language specified (```python, ```javascript, etc)
-    const markdownRegex = /^```\w*\s*\n?([\s\S]*?)\n?```$/;
-    const match = text.match(markdownRegex);
+    // Check if the text starts with a markdown code block indicator (```python, ```javascript, etc)
+    const markdownStartRegex = /^```\w*\s*\n?/;
+    // Check if the text ends with a markdown code block closing
+    const markdownEndRegex = /\n?```$/;
+    
+    // Remove markdown code block syntax if present
+    let cleanedText = text;
+    
+    // Remove starting markdown syntax if present
+    if (markdownStartRegex.test(cleanedText)) {
+        console.log("Removing markdown code block start");
+        cleanedText = cleanedText.replace(markdownStartRegex, '');
+    }
+    
+    // Remove ending markdown syntax if present
+    if (markdownEndRegex.test(cleanedText)) {
+        console.log("Removing markdown code block end");
+        cleanedText = cleanedText.replace(markdownEndRegex, '');
+    }
+    
+    // Check for full markdown code blocks (handling entire content as a code block)
+    const fullMarkdownRegex = /^```\w*\s*\n?([\s\S]*?)\n?```$/;
+    const match = text.match(fullMarkdownRegex);
     
     if (match && match[1]) {
-        console.log("Removing markdown code block wrapper");
+        console.log("Removing full markdown code block wrapper");
         return match[1].trim();
     }
     
-    return text.trim();
+    return cleanedText.trim();
 }
 
 // Function to display the suggestion
-// This is simplified - positioning might need significant work for robustness.
+// Robust positioning logic to ensure suggestions appear at the cursor position
 function displaySuggestion(suggestionText) {
     dismissSuggestion(); // Remove any old one
     if (!lastActiveEditor) {
@@ -67,101 +87,206 @@ function displaySuggestion(suggestionText) {
     console.log("Attempting to display suggestion:", cleanedSuggestion);
     currentSuggestion = cleanedSuggestion; // Store the cleaned text
 
+    // Format multiline suggestions properly
+    const formattedSuggestion = formatSuggestionWithLineBreaks(cleanedSuggestion);
+    
     suggestionElement = document.createElement('span');
     suggestionElement.className = 'labassistant-suggestion-overlay';
-    // Basic multi-line handling (replace newline with <br>, use pre-wrap)
-    suggestionElement.innerHTML = cleanedSuggestion.replace(/\n/g, '<br>');
-    suggestionElement.style.whiteSpace = 'pre-wrap'; // Honor newlines and spaces
+    
+    // Handle multiline formatting properly using pre element to preserve exact code formatting
+    suggestionElement.innerHTML = formattedSuggestion;
+    suggestionElement.style.whiteSpace = 'pre'; // Honor newlines and spaces exactly
 
-    // --- Improved Positioning Attempt ---
-    const cmElement = lastActiveEditor; // CodeMirror wrapper element
-    const editorRect = cmElement.getBoundingClientRect();
-    
-    // Try to find cursor and position relative to it
-    let cursorElement = cmElement.querySelector('.CodeMirror-cursor');
-    let cursorRect = null;
-    let cursorLine = null;
-    
-    // Find the active line to position relative to it
-    const activeLines = cmElement.querySelectorAll('.CodeMirror-activeline');
-    if (activeLines.length > 0) {
-        console.log("Found active line element:", activeLines[0]);
-        cursorLine = activeLines[0];
-    }
-    
-    // If we found a cursor element, get its position
-    if (cursorElement && cursorElement.getBoundingClientRect) {
-        cursorRect = cursorElement.getBoundingClientRect();
-        console.log("Found cursor element at coordinates:", 
-                    "left:", cursorRect.left, "top:", cursorRect.top);
-    }
-    
-    // Position the suggestion element
-    if (cursorRect || cursorLine) {
-        // Try to add to the editor container for proper relative positioning
-        const activeCell = cmElement.closest('.jp-CodeCell.jp-mod-active');
-        const editorContainer = cmElement.closest('.jp-Editor, .jp-CodeMirrorEditor');
-        
-        if (editorContainer) {
-            // First try to append it directly to editor container with absolute positioning
-            editorContainer.appendChild(suggestionElement);
-            suggestionElement.style.position = 'absolute'; // Position absolutely within editor
-            
-            if (cursorRect) {
-                // Position relative to cursor if found
-                const containerRect = editorContainer.getBoundingClientRect();
-                suggestionElement.style.left = (cursorRect.left - containerRect.left) + 'px';
-                suggestionElement.style.top = (cursorRect.top - containerRect.top) + 'px';
-                console.log("Positioned relative to cursor");
-            } else if (cursorLine) {
-                // Position at end of active line if cursor not found
-                const lineRect = cursorLine.getBoundingClientRect();
-                const containerRect = editorContainer.getBoundingClientRect();
-                suggestionElement.style.left = (lineRect.left - containerRect.left + lineRect.width) + 'px';
-                suggestionElement.style.top = (lineRect.top - containerRect.top) + 'px';
-                console.log("Positioned at end of active line");
-            }
-        } else if (activeCell) {
-            // Fallback: append to active cell
-            activeCell.appendChild(suggestionElement);
-            console.log("Appended to active cell (fallback)");
+    // Function to properly format suggestions with line breaks
+    function formatSuggestionWithLineBreaks(suggestion) {
+        // If suggestion contains newlines, format it properly for display
+        if (suggestion.includes('\n')) {
+            console.log("Suggestion contains line breaks, formatting as multiline");
+            // Format as HTML with proper line breaks
+            return suggestion.split('\n').map(line => {
+                // Escape HTML entities to prevent XSS
+                const escapedLine = line.replace(/&/g, '&amp;')
+                                       .replace(/</g, '&lt;')
+                                       .replace(/>/g, '&gt;')
+                                       .replace(/"/g, '&quot;')
+                                       .replace(/'/g, '&#039;');
+                return escapedLine;
+            }).join('<br>');
         } else {
-            // Last resort - add to body with fixed positioning
-            document.body.appendChild(suggestionElement);
-            suggestionElement.style.position = 'fixed';
-            if (cursorRect) {
-                suggestionElement.style.left = cursorRect.left + 'px';
-                suggestionElement.style.top = cursorRect.top + 'px';
+            // Single line, just escape any HTML
+            return suggestion.replace(/&/g, '&amp;')
+                           .replace(/</g, '&lt;')
+                           .replace(/>/g, '&gt;')
+                           .replace(/"/g, '&quot;')
+                           .replace(/'/g, '&#039;');
+        }
+    }
+    
+    // --- Completely Redesigned Positioning Logic ---
+    
+    // Get a reference to the entire notebook
+    const notebookContainer = document.querySelector('.jp-Notebook-container, .notebook-container');
+    
+    // Use the most focused element we can find to determine cursor position
+    const activeCell = document.querySelector('.jp-CodeCell.jp-mod-active');
+    if (!activeCell) {
+        console.warn("No active cell found");
+        return; // Can't position without an active cell
+    }
+    
+    // Find the current cursor position within the active cell
+    // 1. Try to find the cursor element directly
+    const cursorElement = activeCell.querySelector('.CodeMirror-cursor');
+    
+    // 2. Find the active line which should contain the cursor
+    const activeLineElement = activeCell.querySelector('.CodeMirror-activeline');
+    
+    // Find the editor container for positioning
+    const editorContainer = activeCell.querySelector('.jp-Editor, .jp-CodeMirrorEditor, .CodeMirror');
+    
+    // Target where we'll add our suggestion
+    const targetContainer = editorContainer || activeCell;
+    
+    // Get the cursor X and Y position
+    let cursorX = 0;
+    let cursorY = 0;
+    let foundCursor = false;
+    
+    // Find where the cursor position is by using the most reliable method available
+    if (cursorElement && cursorElement.getBoundingClientRect) {
+        // Method 1: Direct cursor detection - most accurate
+        const rect = cursorElement.getBoundingClientRect();
+        cursorX = rect.left + (rect.width || 1); // Position after cursor
+        cursorY = rect.top;
+        foundCursor = true;
+        console.log("Found cursor directly at:", cursorX, cursorY);
+    } 
+    else if (activeLineElement) {
+        // Method 2: Look at active line and try to determine cursor position
+        const lineContent = activeLineElement.querySelector('.CodeMirror-line');
+        if (lineContent) {
+            const lineRect = lineContent.getBoundingClientRect();
+            // Look for focused element or blinking cursor
+            const focusedElements = activeLineElement.querySelectorAll(':focus, .CodeMirror-focused');
+            
+            // Take the active line position and try to determine cursor position
+            // Look at the last text node or element in the line
+            const lineElements = activeLineElement.querySelectorAll('.CodeMirror-line > span, .CodeMirror-line > pre');
+            
+            if (lineElements.length > 0) {
+                // Get the last element which might contain the end of text
+                const lastElement = lineElements[lineElements.length - 1];
+                const lastElementRect = lastElement.getBoundingClientRect();
+                
+                cursorX = lastElementRect.right; // Position at the end of the text
+                cursorY = lineRect.top;
+                foundCursor = true;
+                console.log("Found cursor position using active line:", cursorX, cursorY);
             } else {
-                // Position in visible area as last resort
+                // Fallback to start of line if no specific elements found
+                cursorX = lineRect.left;
+                cursorY = lineRect.top;
+                foundCursor = true;
+                console.log("Using active line start as fallback:", cursorX, cursorY);
+            }
+        }
+    }
+    
+    // Method 3: Last resort - find visible text elements and assume cursor is at the bottom
+    if (!foundCursor) {
+        // Try to find any visible text in the editor
+        const textElements = activeCell.querySelectorAll('.CodeMirror-line');
+        
+        if (textElements.length > 0) {
+            // Assume cursor might be at the last visible line
+            const lastVisibleLine = textElements[textElements.length - 1];
+            const rect = lastVisibleLine.getBoundingClientRect();
+            
+            cursorX = rect.left; // Position at start of line
+            cursorY = rect.bottom; // Position at bottom of last line
+            foundCursor = true;
+            console.log("Using last visible line as extreme fallback:", cursorX, cursorY);
+        }
+    }
+    
+    // If we found a cursor position, proceed with positioning
+    if (foundCursor) {
+        // 1. Append the element to the appropriate container
+        targetContainer.appendChild(suggestionElement);
+        
+        // 2. Set up absolute positioning within the cell
+        suggestionElement.style.position = 'absolute';
+        
+        // 3. Calculate and set the position relative to container
+        const containerRect = targetContainer.getBoundingClientRect();
+        
+        // Adjust position to be exactly where cursor is
+        // The key is making the suggestion appear exactly where the user is typing
+        const leftPosition = cursorX - containerRect.left;
+        const topPosition = cursorY - containerRect.top;
+        
+        // Apply the position
+        suggestionElement.style.left = leftPosition + 'px';
+        suggestionElement.style.top = topPosition + 'px';
+        
+        console.log("Positioned suggestion at cursor location:", leftPosition, topPosition);
+        console.log("Positioned suggestion precisely at cursor position");
+    } else {
+        // If we couldn't find a cursor position, try putting it in a reasonable location
+        console.error("Failed to determine cursor position");
+        
+        // Place suggestion in the active cell at a visible location
+        if (activeCell) {
+            activeCell.appendChild(suggestionElement);
+            suggestionElement.style.position = 'absolute';
+            
+            // Try to find any code/text in the cell
+            const codeArea = activeCell.querySelector('.CodeMirror-code');
+            if (codeArea) {
+                // Position near the code
+                const codeRect = codeArea.getBoundingClientRect();
+                const cellRect = activeCell.getBoundingClientRect();
+                
+                suggestionElement.style.left = (codeRect.left - cellRect.left + 20) + 'px';
+                suggestionElement.style.top = (codeRect.bottom - cellRect.top - 20) + 'px';
+            } else {
+                // Center in cell
                 suggestionElement.style.left = '50%';
                 suggestionElement.style.top = '50%';
-            }
-            console.log("Added to body with absolute positioning (last resort)");
-        }
-    } else {
-        // If we couldn't find cursor or active line, fallback to previous method
-        console.warn("Could not find cursor or active line for positioning.");
-        const activeCell = cmElement.closest('.jp-CodeCell.jp-mod-active');
-        if (activeCell) {
-            const editorContainer = cmElement.closest('.jp-Editor');
-            if(editorContainer) {
-                editorContainer.parentNode.insertBefore(suggestionElement, editorContainer.nextSibling);
-                console.log("Suggestion element appended after editor container (fallback).");
-            } else {
-                activeCell.appendChild(suggestionElement);
-                console.log("Appended to active cell (fallback)");
+                suggestionElement.style.transform = 'translate(-50%, -50%)';
             }
         } else {
-            console.warn("Could not find active cell to append suggestion.");
+            // Ultimate fallback - add to body
             document.body.appendChild(suggestionElement);
-            console.log("Added to body (last resort)");
+            suggestionElement.style.position = 'fixed';
+            suggestionElement.style.left = '50%';
+            suggestionElement.style.top = '50%';
+            suggestionElement.style.transform = 'translate(-50%, -50%)';
         }
     }
-     // --- End Positioning Attempt ---
-
-     console.log("Suggestion displayed (positioning may be basic).");
-
+    
+    // Add a debug outline to help visualize the suggestion boundaries during development
+    // suggestionElement.style.outline = '1px solid red'; // Uncomment for debugging
+    
+    // Make sure the suggestion doesn't have unwanted styles inherited
+    suggestionElement.style.zIndex = '1000'; // Ensure it's above other elements
+    suggestionElement.style.backgroundColor = 'rgba(255,255,255,0.7)'; // More transparent background
+    suggestionElement.style.padding = '0'; // Remove padding for tighter text alignment
+    suggestionElement.style.margin = '0'; // Reset margins
+    suggestionElement.style.border = 'none'; // No borders
+    suggestionElement.style.borderRadius = '2px';
+    suggestionElement.style.fontSize = 'inherit'; // Match editor font size
+    suggestionElement.style.fontFamily = 'monospace'; // Use monospace font like the editor
+    suggestionElement.style.color = '#777'; // Subtle gray color for suggestion
+    suggestionElement.style.whiteSpace = 'pre'; // Preserve whitespace exactly
+    suggestionElement.style.display = 'inline-block'; // Better text handling
+    suggestionElement.style.textIndent = '0'; // No text indentation
+    suggestionElement.style.lineHeight = 'inherit'; // Match editor line height
+    
+    // Add debugging outline to help troubleshoot positioning
+    // suggestionElement.style.outline = '1px solid red';
+    
+    console.log("Enhanced suggestion display complete");
 }
 
 
@@ -397,10 +522,18 @@ function copyToClipboardWithNotification() {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log("Content script received message:", request);
     if (request.type === 'suggestionResult') {
-        displaySuggestion(request.suggestion);
+        // Only display the suggestion if it's not trying to inject a code block marker
+        // that wasn't in the original message (we only want to display completions, not introduce markers)
+        const containsMarkdownMarker = /```python|```jupyter|```sql|```bash|```/i.test(request.suggestion);
+        if (!containsMarkdownMarker || request.originalContainedMarker) {
+            displaySuggestion(request.suggestion);
+        } else {
+            console.log("Skipping suggestion as it contains markdown markers that weren't in the original code");
+            // Don't show suggestions that want to add markdown markers
+        }
     } else if (request.type === 'suggestionError') {
         showErrorBanner(request.error);
-         dismissSuggestion(); // Dismiss any current suggestion on error
+        dismissSuggestion(); // Dismiss any current suggestion on error
     } else if (request.type === 'executeAcceptSuggestion') {
         acceptSuggestion();
     }

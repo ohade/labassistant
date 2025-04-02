@@ -12,12 +12,21 @@ chrome.runtime.onInstalled.addListener((details) => {
 const defaultSettings = {
     apiKey: '',
     model: 'gpt-4o',
-    delay: 500,
+    delay: 250,
     maxTokens: 1024,
-    systemPrompt: `You are an AI assistant that provides code completions for Python (especially pandas) and SQL in Jupyter notebooks. Provide only the code completion, no explanations.`
+    systemPrompt: "You are an AI assistant that provides code completions for Python (especially pandas) and SQL in Jupyter notebooks. VERY IMPORTANT: Provide ONLY the continuation text to be inserted where the user stopped typing. DO NOT repeat any of the existing code. DO NOT include markdown code block markers. Provide only plain text continuation that makes sense based on the existing code."
 };
 
 let lastSuggestionRequest = null; // Store info about the last request for command handling
+
+// Helper function to remove markdown code blocks
+function removeMarkdownCodeBlocks(text) {
+    // Remove starting markdown code block markers
+    text = text.replace(/^```\w*\s*\n?/im, '');
+    // Remove ending markdown code block markers
+    text = text.replace(/\n?```$/im, '');
+    return text.trim();
+}
 
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -90,8 +99,8 @@ async function callOpenAI(code, settings, tabId) {
             model: settings.model,
             messages: [
                 { role: 'system', content: settings.systemPrompt },
-                // Send the whole cell content. The model should figure out completion.
-                { role: 'user', content: code }
+                // Send the whole cell content with clear instructions about continuation
+                { role: 'user', content: "Complete this code by providing ONLY the text to insert at the cursor position (where this text ends). Do not repeat any of the existing code.\n\n" + code }
             ],
             max_tokens: settings.maxTokens,
             temperature: 0.3, // Lower temperature for more deterministic code
@@ -144,19 +153,39 @@ async function callOpenAI(code, settings, tabId) {
         }
 
         if (data.choices && data.choices.length > 0 && data.choices[0].message) {
-            const suggestion = data.choices[0].message.content.trim();
+            let suggestion = data.choices[0].message.content.trim();
             // Basic check to avoid suggesting exactly what was typed or empty strings
             if (!suggestion) {
                 console.warn('Empty suggestion received');
                 return;
             }
             
-            // Check if suggestion is just repeating the last line
+            // Remove any markdown code block markers if present
+            suggestion = removeMarkdownCodeBlocks(suggestion);
+            
+            // Check if the suggestion is just repeating the last line or code
             const lastCodeLine = code.slice(code.lastIndexOf('\n') + 1).trim();
             if (suggestion === lastCodeLine) {
                 console.log('Suggestion matches last line of code, not sending:', suggestion);
                 return;
             }
+            
+            // Check if suggestion contains any of the existing code lines
+            const codeLines = code.split('\n');
+            const isJustExistingCode = codeLines.some(line => {
+                const trimmedLine = line.trim();
+                return trimmedLine.length > 10 && suggestion.includes(trimmedLine);
+            });
+            
+            if (isJustExistingCode && suggestion.length < code.length) {
+                console.log('Suggestion appears to repeat existing code, not sending:', suggestion);
+                return;
+            }
+            
+            // Check if the original code contained markdown code block markers
+            const markdownRegex = /```python|```jupyter|```sql|```bash|```/i;
+            const originalContainedMarker = markdownRegex.test(code);
+            console.log('Original code contained markdown markers:', originalContainedMarker);
             
             // Log what we're sending to help debug
             console.log('Sending suggestion to content script:', suggestion);
@@ -165,6 +194,7 @@ async function callOpenAI(code, settings, tabId) {
                 await chrome.tabs.sendMessage(tabId, { 
                     type: 'suggestionResult', 
                     suggestion: suggestion,
+                    originalContainedMarker: originalContainedMarker,
                     timestamp: Date.now() // Add timestamp for debugging
                 });
                 console.log('Suggestion successfully sent to tab', tabId);
