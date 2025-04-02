@@ -1,6 +1,8 @@
 # LabAssistant
 
-<img src="icons/icon128.png" alt="LabAssistant Logo" width="128" height="128"/>
+<p align="center">
+  <img src="icons/iconBig.png" alt="LabAssistant Logo"/>
+</p>
 
 Your intelligent coding companion for JupyterLab. Get contextual suggestions and autocompletion for Python, Spark, and data engineering workflows. Write code faster, focus on what matters.
 
