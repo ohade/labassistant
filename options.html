@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LabAssistant Settings</title>
+    <link rel="stylesheet" href="options.css">
+    <meta charset="utf-8">
+</head>
+<body>
+    <h1>LabAssistant Settings</h1>
+
+    <div class="setting">
+        <label for="apiKey">OpenAI API Key:</label>
+        <input type="password" id="apiKey" name="apiKey">
+        <p class="note">Your API key is stored locally and only sent to OpenAI for code completions. <a href="https://platform.openai.com/account/api-keys" target="_blank">Get an API key</a></p>
+    </div>
+
+    <div class="setting">
+        <label for="model">Model:</label>
+        <input type="text" id="model" name="model" value="gpt-4o" disabled>
+         <p class="note">Currently fixed to gpt-4o.</p>
+    </div>
+
+    <div class="setting">
+        <label for="delay">Suggestion Delay (ms):</label>
+        <input type="number" id="delay" name="delay" min="0" step="50">
+    </div>
+
+    <div class="setting">
+        <label for="maxTokens">Maximum Tokens:</label>
+        <input type="number" id="maxTokens" name="maxTokens" min="1" step="1">
+    </div>
+
+     <div class="setting">
+        <label for="systemPrompt">System Prompt:</label>
+        <textarea id="systemPrompt" name="systemPrompt" rows="5"></textarea>
+    </div>
+
+     <div class="setting">
+         <label>Accept Suggestion:</label>
+         <p class="note">Use the shortcut <strong id="shortcutDisplay">Ctrl+Shift+A</strong> (Windows/Linux) or <strong >Command+Shift+A</strong> (Mac). Configure in <a href="chrome://extensions/shortcuts" target="_blank">chrome://extensions/shortcuts</a>.</p>
+     </div>
+
+
+    <button id="save">Save Settings</button>
+    <p id="status"></p>
+
+    <script src="options.js"></script>
+</body>
+</html>

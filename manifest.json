@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "LabAssistant",
+  "version": "0.1.0",
+  "description": "Provides AI code completions in Jupyter notebooks using OpenAI.",
+  "permissions": [
+    "storage", 
+    "activeTab" 
+  ],
+  "host_permissions": [
+    "http://localhost:8888/lab*",
+    "http://127.0.0.1:8888/lab*",
+    "https://*/lab*",
+    "http://*/lab*",
+    "https://api.openai.com/*"
+  ],
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:8888/lab*",
+        "http://127.0.0.1:8888/lab*",
+        "https://*/lab*",
+        "http://*/lab*"
+      ],
+      "js": ["labassistant_content.js"],
+      "css": ["labassistant.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "accept_suggestion": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+A", 
+        "mac": "Command+Shift+A"
+      },
+      "description": "Accept Copilot Suggestion"
+    }
+  },
+  "action": {
+      "default_title": "LabAssistant Settings",
+      "default_popup": "options.html" 
+  },
+  "icons": {
+     "16": "icons/icon16.png",
+     "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
